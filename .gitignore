@@ -1,0 +1,68 @@
+# --- Build output ---------------------------------------------------------
+build/
+build-*/
+out/
+cmake-build-*/
+install/
+
+# CMake droppings when someone configures in-tree
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+Makefile
+*.cmake.stamp
+
+# --- Compiled artifacts ---------------------------------------------------
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# Emitted/validated modules produced by the tests and examples
+*.wasm
+*.wat
+
+# --- Editors / IDEs -------------------------------------------------------
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.user
+*.swp
+*~
+
+# --- OS -------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Python (tools/gen_*.py) ----------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- Local tooling config -------------------------------------------------
+.claude/settings.local.json
+
+# --- Third-party SDKs unpacked into the tree ------------------------------
+wasi-sdk*/
+wasmtime-*/
+node_modules/

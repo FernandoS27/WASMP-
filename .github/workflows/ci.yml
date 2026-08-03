@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-gcc,     os: ubuntu-latest,  cxx: g++ }
+          - { name: linux-clang,   os: ubuntu-latest,  cxx: clang++ }
+          - { name: macos-clang,   os: macos-latest,   cxx: clang++ }
+          - { name: windows-msvc,  os: windows-latest, cxx: cl }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      # wasm-tools enables the external validation legs (validate_golden, etc.).
+      - name: Install wasm-tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-tools
+
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # Prove wasmp runs INSIDE a WebAssembly host: compile it to wasm32-wasi, run
+  # it under Node's WASI runtime so it emits modules from the sandbox, and
+  # validate those with wasm-tools.
+  wasm-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-tools
+      - name: Install wasi-sdk
+        run: |
+          curl -sSL -o wasi-sdk.tar.gz \
+            https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz
+          mkdir -p "$HOME/wasi-sdk" && tar xzf wasi-sdk.tar.gz -C "$HOME/wasi-sdk" --strip-components=1
+      - name: Compile wasmp to wasm32-wasi, run under WASI, validate output
+        run: |
+          "$HOME/wasi-sdk/bin/wasm32-wasip1-clang++" -std=c++20 -O2 -fno-exceptions -fno-rtti \
+            -Iinclude examples/wasm_host_demo.cpp -o demo.wasm
+          node --experimental-wasi-unstable-preview1 examples/run_wasi.mjs demo.wasm out
+          for f in out/*.wasm; do wasm-tools validate --features=all "$f"; echo "valid: $f"; done
+
+  # A dedicated leg to prove the header-only library builds with exceptions and
+  # RTTI disabled, and in release (policy::Trust) with -Werror.
+  strict-flags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No-exceptions / no-RTTI / release smoke build
+        run: |
+          for flags in "" "-DNDEBUG" "-fno-exceptions -fno-rtti" "-DNDEBUG -fno-exceptions -fno-rtti"; do
+            echo "=== flags: $flags ==="
+            g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror $flags \
+                -fsyntax-only -Iinclude tests/facade_smoke.cpp
+          done
